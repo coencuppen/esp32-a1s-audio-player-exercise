@@ -1,0 +1,43 @@
+
+######################## INSTALLATION #############################
+
+Before we can build this program, we have to make sure ESP-IDF knows the configuration of our esp32-a1s with the es8388 audio codec chip.
+
+step 1:
+open the pipeline_play_sdcard_music folder and run the symbolic_link_maker 2.bat
+
+step 2:
+open ESP-IDF and navigate to:
+
+"{PATH TO GITHUB}\esp32-a1s-audio-player-exercise\Exercise 1 Music Player\pipeline_sdcard_mp3_control"
+
+step 3:
+run:
+idf.py menuconfig
+
+navigate to 'Audio HAL'
+select 'custom audio board'
+
+if symbolic_link_maker worked you should see 'Custom Audio Board' if not exit and run symbolic_link_maker.bat first
+
+step 4:
+navigate to 'Custom Audio Board'
+select: 'Select a custom audio board (...'
+select: 'Ai Thinker ESP32 Audio Kit (ES8388, variant 5)'
+select: 'use on-board SD card'
+
+press escape couple of times
+press 'y' to apply changes
+
+step 5:
+run: idf.py build flash monitor
+
+this can take some time...
+
+if you don't see bunch of I2C errors in red the configuration is complete!
+
+test the code by putting some music (.wav) on a SD card and insert it in the esp.
+
+############################ EXERCISE #############################
+
+

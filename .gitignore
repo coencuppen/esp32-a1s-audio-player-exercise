@@ -10,3 +10,8 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
+
+/Exercise 1 SD Card Player/pipeline_play_sdcard_music/build
+/Exercise 1 SD Card Player/pipeline_play_sdcard_music/managed_components
+/Exercise 1 SD Card Player/pipeline_sdcard_mp3_control/build
+/Exercise 1 SD Card Player/pipeline_sdcard_mp3_control/managed_components

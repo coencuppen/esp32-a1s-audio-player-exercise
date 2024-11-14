@@ -2,7 +2,13 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.5)
 
+set(EXTRA_COMPONENT_DIRS components/esp32-wifi-manager)
 include($ENV{ADF_PATH}/CMakeLists.txt)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
+idf_build_set_property(PARTITION_TABLE_FILENAME "partitions.csv")
+
 project(play_sdcard_mp3_control)
+
+include_directories($ENV{ADF_PATH}/components)
+include_directories($ENV{ADF_PATH}/include)

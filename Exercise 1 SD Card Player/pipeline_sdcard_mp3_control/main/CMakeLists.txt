@@ -1,4 +1,7 @@
-set(COMPONENT_SRCS "play_sdcard_mp3_control_example.c")
-set(COMPONENT_ADD_INCLUDEDIRS .)
+idf_component_register(
+    SRCS "main.cpp" "wifi.cpp" "audio.cpp" "../components/esp32-wifi-manager/src/http_app.c" "cJSON.c" ${COMPONENT_SRCS}
+    INCLUDE_DIRS "." "../include" ${COMPONENT_ADD_INCLUDEDIRS}
 
-register_component()
+)
+
+set(COMPONENT_ADD_INCLUDEDIRS "." "../include")

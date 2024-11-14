@@ -26,10 +26,20 @@ select: 'Select a custom audio board (...'
 select: 'Ai Thinker ESP32 Audio Kit (ES8388, variant 5)'
 select: 'use on-board SD card'
 
+step 5: 
+type '/' type FATFS support for long file names
+select long file names in heap
+enable UTF-8 as the default codepage
+component config -> HTTP Server -> enable WebSocket server support
+
 press escape couple of times
 press 'y' to apply changes
 
-step 5:
+step 6:
+run:
+idf.py add-dependency mdns
+idf.py add-dependency esp_websocket_client
+step 7:
 run: idf.py build flash monitor
 
 this can take some time...

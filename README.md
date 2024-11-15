@@ -21,16 +21,6 @@ https://docs.espressif.com/projects/esp-adf/en/latest/get-started/index.html#get
 Now do step 2 of the guide
 https://docs.espressif.com/projects/esp-adf/en/latest/get-started/index.html#step-2-get-esp-adf
 
-if you don't have ```git``` installed and can't run:
-```bash 
-git clone --recursive https://github.com/espressif/esp-adf.git
-```
-1. download a .zip from https://github.com/espressif/esp-adf.git by clicking on ```< > code```
-2. go to your homepath ```C:\Users\yourname\```
-3. create folder ```esp```
-4. place the unzipped ```esp-adf-master``` folder inside ```esp```
-5. rename ```esp-adf-master``` to ```esp-adf```
-
 Follow step 3 of the guide
 https://docs.espressif.com/projects/esp-adf/en/latest/get-started/index.html#step-3-set-up-the-environment
 

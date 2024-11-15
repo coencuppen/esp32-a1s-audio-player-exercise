@@ -4,9 +4,27 @@ namespace Audio {
     audio_pipeline_handle_t pipeline = NULL;
     audio_element_handle_t i2s_stream_writer = NULL;
     audio_element_handle_t mp3_decoder = NULL;
+    audio_element_handle_t wav_decoder = NULL;
     audio_element_handle_t fatfs_stream_reader = NULL;
-    audio_element_handle_t rsp_handle = NULL;
     playlist_operator_handle_t sdcard_list_handle = NULL;
+}
+
+// Add helper function to get file extension
+const char* Audio::get_file_extension(const char* filename) {
+    const char* dot = strrchr(filename, '.');
+    if (!dot || dot == filename) return "";
+    return dot + 1;
+}
+
+// Add function to select appropriate decoder
+audio_element_handle_t Audio::select_decoder(const char* url) {
+    const char* ext = get_file_extension(url);
+    if (strcasecmp(ext, "mp3") == 0) {
+        return mp3_decoder;
+    } else if (strcasecmp(ext, "wav") == 0) {
+        return wav_decoder;
+    }
+    return NULL;
 }
 
 
@@ -33,24 +51,60 @@ esp_err_t Audio::pipeline_pause(){
     return ESP_FAIL;
 }
 
-esp_err_t Audio::pipeline_next(){
-    char *url = NULL; // Initialized here
+esp_err_t Audio::pipeline_next() {
+    char *url = NULL;
+    
+    // Stop and cleanup current playback
     audio_pipeline_stop(pipeline);
     audio_pipeline_wait_for_stop(pipeline);
     audio_pipeline_terminate(pipeline);
     
-    // Check if the URL is successfully retrieved
     esp_err_t err = sdcard_list_next(sdcard_list_handle, 1, &url);
-    if (err == ESP_OK && url != NULL) {
-        ESP_LOGW(TAG, "URL: %s", url);
-        audio_element_set_uri(fatfs_stream_reader, url);
-        audio_pipeline_reset_ringbuffer(pipeline);
-        audio_pipeline_reset_elements(pipeline);
-        audio_pipeline_run(pipeline);
-    } else {
+    if (err != ESP_OK || url == NULL) {
         ESP_LOGE(TAG, "Failed to get next song URL");
         return ESP_FAIL;
     }
+    
+    ESP_LOGW(TAG, "URL: %s", url);
+    
+    // Get appropriate decoder
+    audio_element_handle_t decoder = select_decoder(url);
+    if (!decoder) {
+        ESP_LOGE(TAG, "Unsupported file format");
+        return ESP_FAIL;
+    }
+    
+    // Reset elements before reconfiguring
+    audio_element_reset_state(fatfs_stream_reader);
+    audio_element_reset_state(mp3_decoder);
+    audio_element_reset_state(wav_decoder);
+    audio_element_reset_state(i2s_stream_writer);
+    
+    // Reconfigure pipeline links
+    audio_pipeline_unlink(pipeline);
+    const char *link_tag[3];
+    link_tag[0] = "file";
+    link_tag[1] = (decoder == mp3_decoder) ? "mp3" : "wav";
+    link_tag[2] = "i2s";
+    
+    esp_err_t link_err = audio_pipeline_link(pipeline, &link_tag[0], 3);
+    if (link_err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to link pipeline elements");
+        return ESP_FAIL;
+    }
+    
+    // Set new URI and reset pipeline
+    audio_element_set_uri(fatfs_stream_reader, url);
+    audio_pipeline_reset_ringbuffer(pipeline);
+    audio_pipeline_reset_elements(pipeline);
+    
+    // Run pipeline with error checking
+    esp_err_t run_err = audio_pipeline_run(pipeline);
+    if (run_err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to run pipeline");
+        return ESP_FAIL;
+    }
+    
     pipeline_show_song();
     return ESP_OK;
 }
@@ -145,27 +199,6 @@ static esp_err_t Audio::input_key_service_cb(periph_service_handle_t handle, per
     if (evt->type == INPUT_KEY_SERVICE_ACTION_CLICK_RELEASE) {
         ESP_LOGI(TAG, "[ * ] input key id is %d", (int)evt->data);
         switch ((int)evt->data) {
-            case INPUT_KEY_USER_ID_PLAY: {
-                ESP_LOGI(TAG, "[ * ] [Play] input key event");
-                audio_element_state_t el_state = audio_element_get_state(i2s_stream_writer); // Initialized here
-                switch (el_state) {
-                    case AEL_STATE_INIT:
-                        pipeline_play();
-                        break;
-                    case AEL_STATE_RUNNING:
-                        pipeline_pause();
-                        break;
-                    default:
-                        break;
-                }
-                break;
-            }
-            case INPUT_KEY_USER_ID_SET: {
-                ESP_LOGI(TAG, "[ * ] [Set] input key event");
-                ESP_LOGI(TAG, "[ * ] Stopped, advancing to the next song");
-                pipeline_next();
-                break;
-            }
             case INPUT_KEY_USER_ID_VOLUP: {
                 ESP_LOGI(TAG, "[ * ] [Vol+] input key event");
                 player_volume += 10;
@@ -212,8 +245,13 @@ void Audio::init(){
 
     ESP_LOGI(TAG, "[1.2] Set up a sdcard playlist and scan sdcard music save to it");
     sdcard_list_create(&sdcard_list_handle);
-    const char *file_types[] = {"mp3"};
-    sdcard_scan(sdcard_url_save_cb, "/sdcard", 0, file_types, 1, sdcard_list_handle);
+
+    const char *file_types[] = {"wav", "mp3"};
+
+    for (int i = 0; i < sizeof(file_types)/sizeof(file_types[0]); i++) {
+        sdcard_scan(sdcard_url_save_cb, "/sdcard", 0, &file_types[i], 1, sdcard_list_handle);
+    }
+
     sdcard_list_show(sdcard_list_handle);
 
     ESP_LOGI(TAG, "[ 2 ] Start codec chip");
@@ -230,7 +268,7 @@ void Audio::init(){
 
     ESP_LOGI(TAG, "[4.0] Create audio pipeline for playback");
     audio_pipeline_cfg_t pipeline_cfg = DEFAULT_AUDIO_PIPELINE_CONFIG();
-    pipeline_cfg.rb_size = 1024;
+    pipeline_cfg.rb_size = 2048;
     pipeline = audio_pipeline_init(&pipeline_cfg);
     mem_assert(pipeline);
 
@@ -244,18 +282,15 @@ void Audio::init(){
     mp3_decoder_cfg_t mp3_cfg = DEFAULT_MP3_DECODER_CONFIG();
     mp3_decoder = mp3_decoder_init(&mp3_cfg);
 
-    // /* ZL38063 audio chip on board of ESP32-LyraTD-MSC does not support 44.1 kHz sampling frequency,
-    //    so resample filter has been added to convert audio data to other rates accepted by the chip.
-    //    You can resample the data to 16 kHz or 48 kHz.
-    // */
-
-    ESP_LOGI(TAG, "[4.3] Create resample filter");
-    rsp_filter_cfg_t rsp_cfg = DEFAULT_RESAMPLE_FILTER_CONFIG();
-    rsp_handle = rsp_filter_init(&rsp_cfg);
+    ESP_LOGI(TAG, "[4.3] Create wav decoder");
+    wav_decoder_cfg_t  wav_dec_cfg  = DEFAULT_WAV_DECODER_CONFIG();
+    wav_decoder = wav_decoder_init(&wav_dec_cfg);
 
     ESP_LOGI(TAG, "[4.4] Create fatfs stream to read data from sdcard");
     char *url = NULL;
     sdcard_list_current(sdcard_list_handle, &url);
+    audio_element_handle_t initial_decoder = select_decoder(url);
+
     fatfs_stream_cfg_t fatfs_cfg = FATFS_STREAM_CFG_DEFAULT();
     fatfs_cfg.type = AUDIO_STREAM_READER;
     fatfs_stream_reader = fatfs_stream_init(&fatfs_cfg);
@@ -264,12 +299,19 @@ void Audio::init(){
     ESP_LOGI(TAG, "[4.5] Register all elements to audio pipeline");
     audio_pipeline_register(pipeline, fatfs_stream_reader, "file");
     audio_pipeline_register(pipeline, mp3_decoder, "mp3");
-    audio_pipeline_register(pipeline, rsp_handle, "filter");
+    audio_pipeline_register(pipeline, wav_decoder, "wav");
     audio_pipeline_register(pipeline, i2s_stream_writer, "i2s");
 
-    ESP_LOGI(TAG, "[4.6] Link it together [sdcard]-->fatfs_stream-->mp3_decoder-->resample-->i2s_stream-->[codec_chip]");
-    const char *link_tag[4] = {"file", "mp3", "filter", "i2s"};
-    audio_pipeline_link(pipeline, &link_tag[0], 4);
+    if (!initial_decoder) {
+        ESP_LOGE(TAG, "Unsupported initial file format");
+        return;
+    }
+
+    ESP_LOGI(TAG, "[4.6] Link it together [sdcard]-->fatfs_stream-->decoder-->i2s_stream-->[codec_chip]");
+    const char *link_tag[3] = {"file", 
+                                (initial_decoder == mp3_decoder) ? "mp3" : "wav",  
+                                "i2s"};
+    audio_pipeline_link(pipeline, &link_tag[0], 3);
 
     ESP_LOGI(TAG, "[5.0] Set up  event listener");
     audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
@@ -282,50 +324,63 @@ void Audio::init(){
     ESP_LOGW(TAG, "      [Play] to start, pause and resume, [Set] next song.");
     ESP_LOGW(TAG, "      [Vol-] or [Vol+] to adjust volume.");
 
+    const int MAX_RETRY_COUNT = 3;
+    int error_count = 0;
+    
     while (1) {
-        /* Handle event interface messages from pipeline
-        to set music info and to advance to the next song
-        */
         audio_event_iface_msg_t msg;
         esp_err_t ret = audio_event_iface_listen(evt, &msg, portMAX_DELAY);
+        
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "[ * ] Event interface error : %d", ret);
+            error_count++;
+            ESP_LOGE(TAG, "[ * ] Event interface error : %d (attempt %d/%d)", 
+                    ret, error_count, MAX_RETRY_COUNT);
+            
+            if (error_count >= MAX_RETRY_COUNT) {
+                ESP_LOGE(TAG, "[ * ] Too many event interface errors, reinitializing...");
+                
+                // Clean up existing event interface
+                audio_pipeline_remove_listener(pipeline);
+                audio_event_iface_destroy(evt);
+                
+                // Reinitialize event interface
+                audio_event_iface_cfg_t evt_cfg = AUDIO_EVENT_IFACE_DEFAULT_CFG();
+                evt = audio_event_iface_init(&evt_cfg);
+                if (evt == NULL) {
+                    ESP_LOGE(TAG, "[ * ] Failed to reinitialize event interface");
+                    vTaskDelay(pdMS_TO_TICKS(1000));  // Wait before retrying
+                    continue;
+                }
+                
+                audio_pipeline_set_listener(pipeline, evt);
+                error_count = 0;
+            }
+            
+            // Add delay before retry to prevent tight loop
+            vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
+        
+        // Reset error count on successful event
+        error_count = 0;
+        
         if (msg.source_type == AUDIO_ELEMENT_TYPE_ELEMENT) {
-            // Set music info for a new song to be played
-            if (msg.source == (void *) mp3_decoder
+            // Handle music info from either decoder
+            if ((msg.source == (void *)mp3_decoder || msg.source == (void *)wav_decoder)
                 && msg.cmd == AEL_MSG_CMD_REPORT_MUSIC_INFO) {
                 audio_element_info_t music_info = {0};
-                audio_element_getinfo(mp3_decoder, &music_info);
-                ESP_LOGI(TAG, "[ * ] Received music info from mp3 decoder, sample_rates=%d, bits=%d, ch=%d",
-                        music_info.sample_rates, music_info.bits, music_info.channels);
+                audio_element_getinfo((audio_element_handle_t)msg.source, &music_info);
+                ESP_LOGI(TAG, "[ * ] Received music info from decoder, sample_rates=%d, bits=%d, ch=%d",
+                         music_info.sample_rates, music_info.bits, music_info.channels);
                 audio_element_setinfo(i2s_stream_writer, &music_info);
-                //rsp_filter_set_src_info(rsp_handle, music_info.sample_rates, music_info.channels);
-                continue;
-            }
-            // Advance to the next song when previous finishes
-            if (msg.source == (void *) i2s_stream_writer
-                && msg.cmd == AEL_MSG_CMD_REPORT_STATUS) {
-                audio_element_state_t el_state = audio_element_get_state(i2s_stream_writer);
-                if (el_state == AEL_STATE_FINISHED) {
-                    ESP_LOGI(TAG, "[ * ] Finished, advancing to the next song");
-                    sdcard_list_next(sdcard_list_handle, 1, &url);
-                    ESP_LOGW(TAG, "URL: %s", url);
-                    /* In previous versions, audio_pipeline_terminal() was called here. It will close all the element task and when we use
-                    * the pipeline next time, all the tasks should be restarted again. It wastes too much time when we switch to another music.
-                    * So we use another method to achieve this as below.
-                    */
-                    audio_element_set_uri(fatfs_stream_reader, url);
-                    audio_pipeline_reset_ringbuffer(pipeline);
-                    audio_pipeline_reset_elements(pipeline);
-                    audio_pipeline_change_state(pipeline, AEL_STATE_INIT);
-                    audio_pipeline_run(pipeline);
-                    pipeline_show_song();
-                }
+                i2s_stream_set_clk(i2s_stream_writer, music_info.sample_rates, 
+                                 music_info.bits, music_info.channels);
                 continue;
             }
         }
+        
+        // Add a small delay to prevent watchdog timeout
+        vTaskDelay(pdMS_TO_TICKS(1));
     }
 
     ESP_LOGI(TAG, "[ 7 ] Stop audio_pipeline");
@@ -352,7 +407,7 @@ void Audio::init(){
     audio_pipeline_deinit(pipeline);
     audio_element_deinit(i2s_stream_writer);
     audio_element_deinit(mp3_decoder);
-    //audio_element_deinit(rsp_handle);
+    audio_element_deinit(wav_decoder);
     periph_service_destroy(input_ser);
     esp_periph_set_destroy(set);
 }

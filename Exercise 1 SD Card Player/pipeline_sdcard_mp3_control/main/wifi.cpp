@@ -24,7 +24,9 @@ esp_err_t Wifi::send_websocket_message(httpd_req_t *req, const char *message) {
 }
 
 esp_err_t Wifi::websocket_handler(httpd_req_t *req) {
-    websocket_req_handle = req;
+    if(req->handle){
+        websocket_req_handle = req;
+    }
     if (strcmp(req->uri, "/ws") == 0 && req->method == HTTP_GET) {
         ESP_LOGI(TAG, "Handshake done, the new connection was opened");
         Audio::pipeline_show_song();

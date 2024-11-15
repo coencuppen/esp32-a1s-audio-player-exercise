@@ -15,7 +15,7 @@
 #include "fatfs_stream.h"
 #include "i2s_stream.h"
 #include "mp3_decoder.h"
-#include "filter_resample.h"
+#include "wav_decoder.h"
 
 #include "esp_peripherals.h"
 #include "periph_sdcard.h"
@@ -36,8 +36,11 @@ static const char *TAG = "AUDIO";
 namespace Audio {
 
     extern audio_pipeline_handle_t pipeline;
-    extern audio_element_handle_t i2s_stream_writer, mp3_decoder, fatfs_stream_reader, rsp_handle;
+    extern audio_element_handle_t i2s_stream_writer, mp3_decoder, wav_decoder, fatfs_stream_reader;
     extern playlist_operator_handle_t sdcard_list_handle;
+
+    const char* get_file_extension(const char* filename);
+    audio_element_handle_t select_decoder(const char* url);
 
     esp_err_t pipeline_show_song();
     esp_err_t pipeline_play();

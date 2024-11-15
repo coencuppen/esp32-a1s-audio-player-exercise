@@ -1,4 +1,4 @@
-# esp32-a1s-audio-player-exercise
+# esp32-a1s-audio-player
 
 ## Environment set up 
 ### Install ESP-IDF v5.3
@@ -29,5 +29,18 @@ https://docs.espressif.com/projects/esp-adf/en/latest/get-started/index.html#ste
 ### Adding the custom ESP-32-A1S audio board to adf
 
 1. clone or download the .zip https://github.com/trombik/esp-adf-component-ai-thinker-esp32-a1s
-2. put the ```esp-adf-component-ai-thinker-esp32-a1s``` folder inside ```esp\esp-adf\components\audio_board```
-3. next step will be inside the exercise instructions. good luck!
+   put the ```esp-adf-component-ai-thinker-esp32-a1s``` folder inside ```esp\esp-adf\components\audio_board```
+3. open the pipeline_play_sdcard_music folder and run the symbolic_link_maker 2.bat
+4. open ESP-IDF and navigate to: ```{PATH TO GITHUB FOLDER}\esp32-a1s-audio-player-exercise\Exercise 1 Music Player\pipeline_sdcard_mp3_control```
+run:
+```bash
+idf.py menuconfig
+```
+Select: ```Audio HAL -> Audio board -> Custom audio board```
+
+if symbolic_link_maker worked you should see ```Custom Audio Board``` if not exit and run symbolic_link_maker.bat first
+
+Select: ```Custom Audio Board -> Select a custom audio board (AI Thinker...) -> Ai Thinker ESP32 A1S Audio Kit (ES8388, variant 5)```
+Select: ```Custom Audio Board -> Use on-board SD card```
+
+press escape a couple of times and ```y``` to apply the changes.

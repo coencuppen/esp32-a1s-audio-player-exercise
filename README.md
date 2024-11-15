@@ -31,16 +31,29 @@ https://docs.espressif.com/projects/esp-adf/en/latest/get-started/index.html#ste
 1. clone or download the .zip https://github.com/trombik/esp-adf-component-ai-thinker-esp32-a1s
    put the ```esp-adf-component-ai-thinker-esp32-a1s``` folder inside ```esp\esp-adf\components\audio_board```
 3. open the pipeline_play_sdcard_music folder and run the symbolic_link_maker 2.bat
-4. open ESP-IDF and navigate to: ```{PATH TO GITHUB FOLDER}\esp32-a1s-audio-player-exercise\Exercise 1 Music Player\pipeline_sdcard_mp3_control```
-run:
+4. open ESP-IDF and navigate to: ```{PATH TO GITHUB FOLDER}\esp32-a1s-audio-player-exercise\Pipeline_sdcard_mp3_control```
+5. run:
 ```bash
 idf.py menuconfig
 ```
-Select: ```Audio HAL -> Audio board -> Custom audio board```
+6. Select: ```Audio HAL -> Audio board -> Custom audio board```
 
 if symbolic_link_maker worked you should see ```Custom Audio Board``` if not exit and run symbolic_link_maker.bat first
 
-Select: ```Custom Audio Board -> Select a custom audio board (AI Thinker...) -> Ai Thinker ESP32 A1S Audio Kit (ES8388, variant 5)```
-Select: ```Custom Audio Board -> Use on-board SD card```
+7. Select: ```Custom Audio Board -> Select a custom audio board (AI Thinker...) -> Ai Thinker ESP32 A1S Audio Kit (ES8388, variant 5)```
 
-press escape a couple of times and ```y``` to apply the changes.
+8. Select: ```Custom Audio Board -> Use on-board SD card```
+
+9. press escape a couple of times and ```y``` to apply the changes.
+
+try to build and flash the project:
+```bash
+idf.py build flash monitor
+```
+
+connect with your device through wifi to ```Music Player``` password: ```password123```
+
+if not redirected automatically go to this ip in your browser.
+```bash
+http://10.10.0.1/
+```

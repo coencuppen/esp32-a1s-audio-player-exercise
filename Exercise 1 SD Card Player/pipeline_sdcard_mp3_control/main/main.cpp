@@ -1,5 +1,5 @@
-#include "audio.cpp"
-#include "wifi.cpp"
+#include "audio.hpp"
+#include "wifi.hpp"
 
 extern "C" void app_main(void)
 {
